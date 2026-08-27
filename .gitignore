@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# Data (raw not committed; processed is regenerated on run)
+data/raw/*
+!data/raw/.gitkeep
+
+# Secrets
+.env
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build_notebook.py
+run_pipeline.py

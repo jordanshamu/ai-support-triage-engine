@@ -54,9 +54,11 @@ TEXT_COL = "text"
 LABEL_COL = "intent"
 
 # Intents whose downside — money at risk, security, fraud, or a customer we
-# could lose — is high enough that they are NEVER auto-resolved regardless of
-# model confidence. Curated from the real 77 labels; the routing layer routes
-# these to a human every time. (See business_impact.gate_decision.)
+# could lose — is high enough that a prediction of one is never auto-resolved,
+# whatever the model's confidence. Curated from the real 77 labels; the routing
+# layer sends these to a human every time. The gate reads the *predicted*
+# intent, so it cannot catch a high-stakes ticket the model confidently files as
+# routine — see business_impact.gate_decision and high_stakes_leakage.
 HIGH_STAKES = frozenset({
     "compromised_card",
     "lost_or_stolen_card",

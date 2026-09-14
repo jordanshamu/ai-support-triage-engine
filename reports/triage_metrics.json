@@ -560,7 +560,26 @@
     "chosen_threshold": 0.75,
     "automation_rate": 0.4279,
     "auto_stream_accuracy": 0.9788,
-    "high_stakes_routed_to_human": 583
+    "high_stakes_routed_to_human": 583,
+    "high_stakes_leakage": {
+      "conf_threshold": 0.75,
+      "true_high_stakes_tickets": 600,
+      "leaked_to_auto": 2,
+      "leak_rate_of_high_stakes": 0.0033,
+      "leak_rate_of_all_tickets": 0.0006,
+      "examples": [
+        {
+          "true_intent": "declined_transfer",
+          "pred_intent": "transfer_into_account",
+          "confidence": 0.9181
+        },
+        {
+          "true_intent": "declined_card_payment",
+          "pred_intent": "card_acceptance",
+          "confidence": 0.8015
+        }
+      ]
+    }
   },
   "roi_illustrative": {
     "annual_volume": 144000,
@@ -568,7 +587,6 @@
     "engine_annual_cost": 428382.74,
     "net_annual_savings": 262817.26,
     "savings_pct": 0.3802,
-    "roi_multiple": 26.01,
     "agent_hours_freed": 8529.0,
     "llm_annual_cost": 1728.0,
     "rework_annual_cost": 8377.75,
@@ -580,7 +598,8 @@
       "minutes_per_ticket_assisted": 2.5,
       "loaded_hourly_cost": 32.0,
       "llm_cost_per_ticket": 0.012,
-      "rework_minutes_per_error": 12.0
+      "rework_minutes_per_error": 12.0,
+      "pretriage_time_saving": 0.15
     }
   },
   "llm": {

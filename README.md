@@ -28,7 +28,7 @@ This project automates that step and then does the honest thing: it tests the au
 - **Structured entities** — amounts, card/account references, dates
 - **A drafted first reply** the agent can edit and send
 
-A confidence gate then decides what ships on its own and what goes to a person. High-stakes intents — anything touching fraud, loss, or money at risk — always go to a human, confidence notwithstanding. That gate is the whole reason this is deployable rather than a demo.
+A confidence gate then decides what ships on its own and what goes to a person. Anything the engine reads as high-stakes — fraud, loss, or money at risk — goes to a human, confidence notwithstanding. That gate is the whole reason this is deployable rather than a demo, and [its measured failure rate](#the-gate-is-only-as-good-as-the-prediction-behind-it) is reported below rather than assumed away.
 
 **One honesty note up front.** BANKING77 labels only the **intent**. It has no urgency, sentiment, or entity ground truth. So the *scored* benchmark is intent classification; the LLM's other four outputs are shown as capabilities, not graded against labels the dataset doesn't have. I'd rather report one real number than four invented ones.
 
@@ -70,10 +70,13 @@ The dollar figures below come from a unit-economics model (`src/business_impact.
 |---|---|---|
 | Tickets auto-handled at a 0.75 gate | **42.8%** | **real** (baseline confidence on real test set) |
 | Routing accuracy on the automated stream | **97.9%** | **real** |
-| High-stakes tickets forced to a human | 583 of 3,080 | **real** |
+| High-stakes *predictions* routed to a human | 583 of 3,080 | **real** |
+| Genuinely high-stakes tickets that leaked to auto | **2 of 600 (0.33%)** | **real** — see [the gate's limit](#the-gate-is-only-as-good-as-the-prediction-behind-it) |
 | Modeled annual baseline cost (all-manual) | ~$691K | assumed volume |
 | Modeled net annual savings with the engine | **~$263K (≈38%)** | modeled |
 | Modeled agent-hours freed per year | **~8,530** | modeled |
+
+**The assumption that moves this number most.** Escalated tickets still reach an agent pre-classified with a draft attached, so the model credits them a **15% handling-time saving** (`pretriage_time_saving=0.15` in `src/business_impact.py`, and in the `assumptions` block of `reports/triage_metrics.json`). That single assumption is worth **~$59K** of the $263K. It is an assumption, not a measured effect — nobody has stopwatched it — so set it to `0.0` for the conservative case, which gives **~$204K (29%)**. I'd rather hand you the dial than bury it.
 
 **On the 0.75 gate:** I didn't pick it to maximise coverage. Confidence separates right from wrong cleanly on this data (viz 05) — above 0.75 the automated stream holds ~98% accuracy. Loosening the gate automates more but starts admitting the band where the model's mistakes live; I'd rather defend a smaller, cleaner automated stream to an ops lead than a bigger one I keep apologising for. The threshold sweep (viz 07) lets anyone move that line. The savings come almost entirely from **agent time recovered**, not from the model being cheap — so the case doesn't collapse if LLM pricing moves.
 
@@ -100,7 +103,22 @@ The dollar figures below come from a unit-economics model (`src/business_impact.
               for one-click send    (full handling)
 ```
 
-High-stakes intents (fraud, loss, security, money at risk — 15 of the 77, listed in `src/data_loader.py`) are **never** auto-resolved regardless of confidence. The cost of being wrong on `compromised_card` or `transfer_not_received_by_recipient` is measured in real harm and churn, not seconds of agent time.
+A ticket **predicted** as one of the 15 high-stakes intents (fraud, loss, security, money at risk — listed in `src/data_loader.py`) is never auto-resolved, whatever the confidence. The cost of being wrong on `compromised_card` or `transfer_not_received_by_recipient` is measured in real harm and churn, not seconds of agent time.
+
+### The gate is only as good as the prediction behind it
+
+That word *predicted* is doing real work, so it is worth stating the limit rather than letting the diagram imply a guarantee it can't make. The rule is applied to the model's output, which means it stops every ticket the model **believes** is high-stakes — and none that it confidently believes is routine.
+
+Audited against ground truth on the real test set (`high_stakes_leakage` in `src/business_impact.py`, reported in `reports/triage_metrics.json`): of **600** genuinely high-stakes tickets, **2** were auto-handled. That is a **0.33%** leak of the high-stakes stream, 0.06% of all tickets. Both were plainly worded:
+
+| Customer wrote | True intent | Predicted | Confidence |
+|---|---|---|---|
+| *"I can't transfer money from my account."* | `declined_transfer` | `transfer_into_account` | 0.92 |
+| *"My card was not accepted."* | `declined_card_payment` | `card_acceptance` | 0.80 |
+
+I tested the obvious mitigation — a keyword tripwire on the ticket text (`stolen`, `fraud`, `declined`, `not recognised`, and ten more) — and **rejected it**: it pushed 11 tickets off the automated stream and caught **0 of the 2** leaks, because neither message contains a risk word. That is the failure mode in miniature. The tickets that slip through are exactly the ones whose *surface text* reads as routine, which is also why the model missed them and why it was confident. Closing this properly needs the model's own uncertainty rather than the customer's vocabulary: gate on the union of the top-k predicted intents, or train a recall-oriented second classifier that answers only "is this risky?" and let it veto.
+
+For an ops lead the honest framing is not "high-stakes tickets never automate" — it's "roughly 1 in 300 will, here are the two that did, and here is what it would take to catch them."
 
 ---
 
@@ -119,10 +137,10 @@ An engineered system prompt lists all 77 intents and forces a strict JSON contra
 Identical scoring for both systems on the same held-out split — accuracy, macro/weighted F1, per-intent precision/recall, confusion analysis. Scored on **intent only**, the one dimension with ground truth.
 
 ### 5. Confidence Gating
-A threshold sweep (0.50 → 0.90) traces the coverage-vs-accuracy curve on the real test set and sets the operating point. High-stakes intents skip automation entirely.
+A threshold sweep (0.50 → 0.90) traces the coverage-vs-accuracy curve on the real test set and sets the operating point. Predicted high-stakes intents skip automation entirely, and the gate is then audited against ground truth to measure what still gets through.
 
 ### 6. Business ROI Model
-A transparent unit-economics model turns the **real** automation rate and routing accuracy into annual cost, agent hours, and LLM spend. Every assumption lives in one file — the figures are illustrative on an assumed volume and meant to be re-run with a real operation's own inputs.
+A transparent unit-economics model turns the **real** automation rate and routing accuracy into annual cost, agent hours, and LLM spend. Every assumption is a named argument to `roi_model` and is echoed into the `assumptions` block of `reports/triage_metrics.json`, so any published figure can be traced back to the inputs that produced it — including `pretriage_time_saving`, the one doing the most work. The figures are illustrative on an assumed volume and meant to be re-run with a real operation's own inputs.
 
 ---
 

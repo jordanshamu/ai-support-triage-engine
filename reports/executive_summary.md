@@ -21,7 +21,7 @@ The question this project answers: can triage be automated reliably enough to tr
 
 An AI engine that reads each inbound ticket and returns five things at once: what it's about (the intent), how urgent it is, how the customer feels, the key facts pulled out automatically, and a ready-to-send draft reply.
 
-The part that makes it safe to deploy: the engine knows when *not* to act. A confidence gate auto-handles only routine, high-confidence tickets and sends everything ambiguous or high-stakes — anything touching fraud, loss, or money at risk — to a person.
+The part that makes it safe to deploy: the engine knows when *not* to act. A confidence gate auto-handles only routine, high-confidence tickets and sends everything it reads as ambiguous or high-stakes — anything touching fraud, loss, or money at risk — to a person. How often that safety net misses is measured, not assumed, and reported below.
 
 The benchmark runs on **BANKING77**: 13,083 real online-banking customer-service messages, each labelled with one of 77 intents, published by PolyAI (ACL 2020). This matters — the results below are earned on messages written by real customers, not on synthetic data.
 
@@ -47,18 +47,22 @@ So the recommendation isn't "buy the AI." It's: the trained model already handle
 |---|---|---|
 | Share of tickets safely auto-handled (0.75 gate) | ~42.8% | **real** |
 | Routing accuracy on the automated stream | ~97.9% | **real** |
-| High-stakes tickets always sent to a human | 583 of 3,080 | **real** |
+| Tickets *flagged* high-stakes and sent to a human | 583 of 3,080 | **real** |
+| High-stakes tickets the flag missed | 2 of 600 (0.33%) | **real** |
 | Modeled all-manual annual cost | ~$691,000 | assumed volume |
 | Modeled net annual savings with the engine | **~$263,000 (about 38%)** | modeled |
 | Modeled agent hours freed each year | **~8,530 hours** | modeled |
 
 Nearly all of that comes from **agent time recovered**, not from the AI being cheap to run — so the case doesn't collapse if AI pricing shifts.
 
+**One assumption to be aware of before quoting the savings.** Tickets the engine escalates still reach an agent already sorted and with a draft reply attached, so the model assumes those take **15% less time** to handle. Nobody has timed that yet, and it accounts for about **$59,000** of the $263,000. Strip it out entirely and the saving is **~$204,000 (about 29%)**, which is the number I'd plan against until it's measured.
+
 ---
 
 ## What This Project Does Not Cover
 
 - **The LLM side hasn't been scored yet.** The head-to-head needs a live API key; this build ran without one. No LLM accuracy figure is claimed. Running it is the first thing on the list, not the last.
+- **The high-stakes safety net is very good, not perfect.** It acts on what the model *thinks* a ticket is about, so it catches everything the model recognises as risky — and nothing it confidently misreads as routine. On the real test set that was 2 tickets out of 600, about 1 in 300. Both were mildly worded ("My card was not accepted"), which is precisely why they were missed. A keyword filter was tested as a backstop and dropped: it caught neither one. The fix is a second, risk-only check on the model's own uncertainty, and it should be built before this runs on fraud-adjacent queues.
 - **The dollar figures rest on assumed volume.** The automation *rate* is real; the pricing around it is a model. Before anyone acts on the savings, run the engine on a sample of the organisation's own historical tickets and check it against how they were actually routed.
 - **No live helpdesk integration.** Wiring into Zendesk, Salesforce, or Intercom is real engineering beyond this prototype.
 - **No proof yet that AI drafts resolve tickets faster.** That's a causal claim and needs a controlled A/B test to earn.
